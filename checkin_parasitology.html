@@ -369,7 +369,7 @@
   <div class="header">
     <div class="header-badge">ระบบลงทะเบียน</div>
     <h1>ประชุมวิชาการ<br>สมาคมปรสิตวิทยา 2026</h1>
-    <p>8 พฤษภาคม 2569</p>
+    <p>7-8 พฤษภาคม 2569</p>
   </div>
 
   <!-- Config warning -->
@@ -451,7 +451,10 @@
 <!-- Confirm modal -->
 <div id="modal-bg">
   <div class="modal">
-    <div class="modal-avatar">👤</div>
+    <div class="modal-avatar" style="position:relative;">
+      👤
+      <div id="modal-seq" style="position:absolute;top:-6px;right:-6px;background:var(--accent);color:#fff;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:600;min-width:24px;text-align:center;"></div>
+    </div>
     <h2 id="modal-name">ชื่อ นามสกุล</h2>
     <div class="modal-org" id="modal-org">สถาบัน</div>
     <div class="modal-btns">
@@ -478,7 +481,7 @@
 // วิธีที่ 1: ใช้ Google Apps Script (แนะนำ)
 // - นำไฟล์นี้ไปวางเป็น doGet() ใน Apps Script
 // - แก้ WEBAPP_URL ให้ตรงกับ Deployment URL
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxzQY0RudrRHL3JqJ2CCrVA1Gz6ZSU27nZiOch1hYyIXQEUDheBchIVM2HHJgW-ea4/exec"; // ← วาง Apps Script Web App URL ตรงนี้
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxgDl6f5ngvUCGbrEurbvxRhsgXyBIlpqcI9IepEuEGNn3Rob9Jbd96v5sIwjJxxNXWvA/exec"; // ← วาง Apps Script Web App URL ตรงนี้
 
 // วิธีที่ 2: ใช้ Google Sheets API (public sheet)
 // - Sheet ต้องตั้งเป็น Anyone with link can view
@@ -487,7 +490,7 @@ const SHEET_ID  = ""; // ← วาง Spreadsheet ID ตรงนี้
 const SHEET_GID = "0"; // ← Sheet tab GID (ปกติคือ 0)
 
 // URL ฟอร์มลงทะเบียนใหม่ (Google Form หรือลิงก์อื่น)
-const REGISTRATION_URL = "https://form.jotform.com/252931020675453"; // ← วาง URL ฟอร์มลงทะเบียนใหม่ตรงนี้
+const REGISTRATION_URL = ""; // ← วาง URL ฟอร์มลงทะเบียนใหม่ตรงนี้
 
 const COL_FIRST = 3;  // ชื่อ (คอลัมน์ D)
 const COL_LAST  = 4;  // นามสกุล (คอลัมน์ E)
@@ -566,11 +569,14 @@ document.getElementById('search').addEventListener('input', function() {
     return;
   }
 
+  const qLow = q.toLowerCase();
   const matches = participants.filter(p =>
-    p.name.includes(q) ||
-    p.firstName.includes(q) ||
-    p.lastName.includes(q) ||
-    p.org.includes(q)
+    p.name.toLowerCase().includes(qLow) ||
+    p.firstName.toLowerCase().includes(qLow) ||
+    p.lastName.toLowerCase().includes(qLow) ||
+    p.org.toLowerCase().includes(qLow) ||
+    (p.email && p.email.toLowerCase().includes(qLow)) ||
+    (p.seq && p.seq.toString() === q.trim())
   ).slice(0, 20);
 
   if (!matches.length) {
@@ -581,6 +587,9 @@ document.getElementById('search').addEventListener('input', function() {
   box.innerHTML = matches.map(p => `
     <div class="result-item ${p.checkedIn ? 'checked-in' : ''}"
          onclick="${p.checkedIn ? '' : `openModal(${p.id})`}">
+      <div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:${p.checkedIn ? 'rgba(52,211,153,0.15)' : 'rgba(79,156,249,0.12)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${p.checkedIn ? 'var(--success)' : 'var(--accent)'};margin-right:4px;">
+        ${p.seq || p.id - 1}
+      </div>
       <div class="result-info">
         <div class="result-name">${highlight(p.name, q)}</div>
         <div class="result-org">${p.org}</div>
@@ -594,7 +603,7 @@ document.getElementById('search').addEventListener('input', function() {
 
 function highlight(text, q) {
   if (!q) return text;
-  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'g');
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
   return text.replace(re, '<mark style="background:rgba(79,156,249,0.3);color:var(--accent2);border-radius:2px;padding:0 1px">$1</mark>');
 }
 
@@ -604,6 +613,8 @@ function openModal(id) {
   if (!selectedPerson) return;
   document.getElementById('modal-name').textContent = selectedPerson.name;
   document.getElementById('modal-org').textContent  = selectedPerson.org;
+  const seqEl = document.getElementById('modal-seq');
+  if (seqEl) seqEl.textContent = selectedPerson.seq ? '#' + selectedPerson.seq : '';
   document.getElementById('modal-bg').classList.add('show');
   document.getElementById('confirm-btn').disabled = false;
   document.getElementById('confirm-btn').innerHTML = '✓ ยืนยัน Check-in';
