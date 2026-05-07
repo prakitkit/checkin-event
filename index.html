@@ -212,6 +212,19 @@
     color: var(--success);
     border: 1px solid rgba(52,211,153,0.2);
   }
+  .status-coupon {
+    background: rgba(251,191,36,0.15);
+    color: var(--warn);
+    border: 1px solid rgba(251,191,36,0.3);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .status-coupon:hover { opacity: 0.75; }
+  .status-coupon-done {
+    background: rgba(251,191,36,0.08);
+    color: #b45309;
+    border: 1px solid rgba(251,191,36,0.2);
+  }
 
   .no-result {
     text-align: center;
@@ -369,7 +382,7 @@
   <div class="header">
     <div class="header-badge">ระบบลงทะเบียน</div>
     <h1>ประชุมวิชาการ<br>สมาคมปรสิตวิทยา 2026</h1>
-    <p>7-8 พฤษภาคม 2569</p>
+    <p>8 พฤษภาคม 2569</p>
   </div>
 
   <!-- Config warning -->
@@ -379,7 +392,7 @@
   </div>
 
   <!-- Stats -->
-  <div class="stats">
+  <div class="stats" style="grid-template-columns:1fr 1fr 1fr 1fr;">
     <div class="stat-card">
       <div class="stat-num num-checked" id="stat-checked">—</div>
       <div class="stat-label">check-in แล้ว</div>
@@ -391,6 +404,10 @@
     <div class="stat-card">
       <div class="stat-num num-pct" id="stat-pct">—</div>
       <div class="stat-label">% เข้าร่วม</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-coupon" style="color:var(--warn);">—</div>
+      <div class="stat-label">🎫 รับคูปองแล้ว</div>
     </div>
   </div>
 
@@ -519,7 +536,7 @@ async function loadData() {
     if (!json.success) throw new Error(json.error || "Unknown error");
 
     participants = json.data;
-    updateStats(json.checked, json.total);
+    updateStats(json.checked, json.total, json.coupon);
     document.getElementById('config-banner').classList.add('hidden');
     setSyncState('ok');
   } catch(e) {
@@ -586,7 +603,7 @@ document.getElementById('search').addEventListener('input', function() {
 
   box.innerHTML = matches.map(p => `
     <div class="result-item ${p.checkedIn ? 'checked-in' : ''}"
-         onclick="${p.checkedIn ? '' : `openModal(${p.id})`}">
+         onclick="">
       <div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:${p.checkedIn ? 'rgba(52,211,153,0.15)' : 'rgba(79,156,249,0.12)'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${p.checkedIn ? 'var(--success)' : 'var(--accent)'};margin-right:4px;">
         ${p.seq || p.id - 1}
       </div>
@@ -594,8 +611,15 @@ document.getElementById('search').addEventListener('input', function() {
         <div class="result-name">${highlight(p.name, q)}</div>
         <div class="result-org">${p.org}</div>
       </div>
-      <div class="result-status ${p.checkedIn ? 'status-done' : 'status-checkin'}">
-        ${p.checkedIn ? '✓ เข้าร่วมแล้ว' : 'check-in'}
+      <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">
+        <div class="result-status ${p.checkedIn ? 'status-done' : 'status-checkin'}"
+             onclick="${p.checkedIn ? '' : `openModal(${p.id})`}" style="cursor:${p.checkedIn?'default':'pointer'}">
+          ${p.checkedIn ? '✓ เข้าร่วมแล้ว' : 'check-in'}
+        </div>
+        <div class="result-status ${p.coupon ? 'status-coupon-done' : 'status-coupon'}"
+             onclick="${p.coupon ? '' : `giveCoupon(${p.id})`}">
+          ${p.coupon ? '🎫 รับแล้ว' : '🎫 แจกคูปอง'}
+        </div>
       </div>
     </div>
   `).join('');
@@ -642,12 +666,13 @@ async function confirmCheckin() {
       const res  = await fetch(WEBAPP_URL + '?action=checkin&id=' + selectedPerson.id, { cache: "no-store" });
       const json = await res.json();
       if (json.alreadyDone) {
+        const p1 = selectedPerson;
         closeModal();
-        showToast('ℹ️', selectedPerson.name, 'Check-in แล้วเมื่อ ' + json.checkinTime);
-        selectedPerson.checkedIn   = true;
-        selectedPerson.checkinTime = json.checkinTime;
+        p1.checkedIn   = true;
+        p1.checkinTime = json.checkinTime;
         updateStats();
         document.getElementById('search').dispatchEvent(new Event('input'));
+        showToast('ℹ️', p1.name, 'Check-in แล้วเมื่อ ' + json.checkinTime);
         return;
       }
       if (!json.success) throw new Error(json.message || "เกิดข้อผิดพลาด");
@@ -658,8 +683,9 @@ async function confirmCheckin() {
     const timeStr = now.getHours().toString().padStart(2,'0') + ':' +
                     now.getMinutes().toString().padStart(2,'0') + ':' +
                     now.getSeconds().toString().padStart(2,'0');
-    selectedPerson.checkedIn   = true;
-    selectedPerson.checkinTime = timeStr;
+    const p2 = selectedPerson;
+    p2.checkedIn   = true;
+    p2.checkinTime = timeStr;
 
     updateStats();
     closeModal();
@@ -667,7 +693,7 @@ async function confirmCheckin() {
     // รีเฟรช search results
     document.getElementById('search').dispatchEvent(new Event('input'));
 
-    showToast('✅', selectedPerson.name, 'Check-in สำเร็จ เวลา ' + timeStr);
+    showToast('✅', p2.name, 'Check-in สำเร็จ เวลา ' + timeStr);
 
   } catch(e) {
     showToast('❌', 'เกิดข้อผิดพลาด', e.message || 'กรุณาลองใหม่');
@@ -688,15 +714,18 @@ function showToast(icon, name, sub) {
 }
 
 // ─── Stats ──────────────────────────────────────────────────
-function updateStats(checked, total) {
+function updateStats(checked, total, coupon) {
   if (checked === undefined) {
     total   = participants.length;
     checked = participants.filter(p => p.checkedIn).length;
+    coupon  = participants.filter(p => p.coupon).length;
   }
   const pct = total ? Math.round(checked / total * 100) : 0;
   document.getElementById('stat-checked').textContent = checked;
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-pct').textContent     = pct + '%';
+  const sc = document.getElementById('stat-coupon');
+  if (sc) sc.textContent = coupon !== undefined ? coupon : participants.filter(p=>p.coupon).length;
 }
 
 async function manualRefresh() {
