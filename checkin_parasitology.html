@@ -808,7 +808,38 @@ function drawQR(canvas, text) {
   };
   document.head.appendChild(script);
 }
+// ─── Give Coupon ─────────────────────────────────────────────
+async function giveCoupon(id) {
+  const person = participants.find(p => p.id === id);
+  if (!person || person.coupon) return;
 
+  if (!confirm('แจกคูปองอาหารให้\n' + person.name + '\nยืนยัน?')) return;
+
+  try {
+    if (WEBAPP_URL) {
+      const res  = await fetch(WEBAPP_URL + '?action=coupon&id=' + id, { cache: 'no-store' });
+      const json = await res.json();
+      if (json.alreadyDone) {
+        person.coupon     = true;
+        person.couponTime = json.couponTime;
+        updateStats();
+        document.getElementById('search').dispatchEvent(new Event('input'));
+        showToast('ℹ️', person.name, 'รับคูปองแล้วเมื่อ ' + json.couponTime);
+        return;
+      }
+      if (!json.success) throw new Error(json.message || 'เกิดข้อผิดพลาด');
+      person.couponTime = json.couponTime;
+    } else {
+      person.couponTime = new Date().toLocaleTimeString('th-TH');
+    }
+    person.coupon = true;
+    updateStats();
+    document.getElementById('search').dispatchEvent(new Event('input'));
+    showToast('🎫', person.name, 'แจกคูปองสำเร็จ เวลา ' + person.couponTime);
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด', e.message || 'กรุณาลองใหม่');
+  }
+}
 // ─── Init ───────────────────────────────────────────────────
 initRegQR();
 loadData().then(() => startRefreshCycle());
